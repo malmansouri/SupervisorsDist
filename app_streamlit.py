@@ -152,8 +152,58 @@ if uploaded_file:
         data=output,
         file_name="خطة توزيع المشرفين.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
     )
+
+st.header("📧 Automated Email Notifications")
+
+smtp_server = st.text_input("SMTP Server")
+smtp_port = st.number_input("SMTP Port", value=587)
+smtp_user = st.text_input("SMTP Username")
+smtp_password = st.text_input("SMTP Password", type="password")
+
+if st.button("Send Emails to Supervisors"):
+    if smtp_server and smtp_port and smtp_user and smtp_password:
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        from email.mime.base import MIMEBase
+        from email import encoders
+
+        try:
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+
+            for supervisor_email in distribution_df['البريد الإلكتروني'].unique():
+                supervisor_plan = distribution_df[distribution_df['البريد الإلكتروني'] == supervisor_email]
+
+                msg = MIMEMultipart()
+                msg['From'] = smtp_user
+                msg['To'] = supervisor_email
+                msg['Subject'] = "Your Personalized Visit Plan"
+
+                body = "Please find your visit plan attached."
+                msg.attach(MIMEText(body, 'plain'))
+
+                output_supervisor = BytesIO()
+                with pd.ExcelWriter(output_supervisor, engine="openpyxl") as writer:
+                    supervisor_plan.to_excel(writer, index=False)
+                output_supervisor.seek(0)
+
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(output_supervisor.read())
+                encoders.encode_base64(part)
+                part.add_header('Content-Disposition', "attachment; filename=visit_plan.xlsx")
+                msg.attach(part)
+
+                server.send_message(msg)
+
+            st.success("Emails sent successfully!")
+            server.quit()
+        except Exception as e:
+            st.error(f"Failed to send emails: {e}")
+    else:
+        st.warning("Please configure SMTP settings.")
 
 st.markdown("""
 <hr style="border-top: 1px solid #ccc; margin-top: 40px;" />
